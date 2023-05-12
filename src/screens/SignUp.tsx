@@ -1,11 +1,19 @@
+import { useState } from 'react';
+
 import { useNavigation } from '@react-navigation/native';
-import { VStack, Center ,Image, Text, Heading, ScrollView } from 'native-base';
+import { VStack, Center ,Image, Text, Heading, ScrollView, useToast } from 'native-base';
 import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup'
 import * as yup from 'yup';
 
+import { api } from "@services/api";
+
+import { useAuth } from '@hooks/useAuth';
+
 import BackgroundImg from '@assets/background.png'
 import LogoSvg from '@assets/logo.svg';
+
+import { AppError } from '@utils/AppError';
 
 import { Input } from '@components/Input';
 import { Button } from '@components/Button';
@@ -17,7 +25,7 @@ type FormDataProps ={
     password_confirm: string
 }
 
-const singUpSchema = yup.object({
+const SignUpSchema = yup.object({
     name: yup.string().required("Informe o nome."),
     email: yup.string().required("Informe o e-mail.")
                        .email("Email Invalido."),
@@ -27,16 +35,48 @@ const singUpSchema = yup.object({
         .oneOf([yup.ref("password")], "A confirmação da senha não confere.")
 });
 
-export function SingUp(){
+export function SignUp(){
+
+    const [isLoading, setIsLoading] = useState(false);
 
     const { control, handleSubmit, formState: { errors } } = useForm<FormDataProps>({
-        resolver: yupResolver(singUpSchema)
+        resolver: yupResolver(SignUpSchema)
     });
+
+    const toast = useToast();
+    const { signIn } = useAuth();
 
     const navigation = useNavigation();
 
-    function handleSingUp({name, email, password, password_confirm}: FormDataProps){
-        console.log({name, email, password, password_confirm});
+    async function handleSignUp({ name, email, password }: FormDataProps){
+        // await fetch("http://192.168.100.76:3333/users", {
+        //     method: "POST",
+        //     headers: {
+        //         "Accept": "application/json",
+        //         "Content-type": "application/json",
+        //     },
+        //     body: JSON.stringify({ name, email, password })
+        // })
+        // .then(response => response.json())
+        // .then(data => console.log(data));
+
+        try {
+            setIsLoading(true);
+            await api.post("/users", { name, email, password });
+            signIn(email, password);
+        } 
+        catch(error) {
+            setIsLoading(false);
+
+            const isAppError = error instanceof AppError;
+            const tilte = isAppError ? error.message : "Não foi possivel criar a conta, tente novamente mais tarde";
+
+            toast.show({
+                title: tilte,
+                placement: "top",
+                bgColor: "red.500"
+            });
+        }
     }
 
     function handleGoBack(){
@@ -121,7 +161,7 @@ export function SingUp(){
                          secureTextEntry
                          onChangeText={ onChange }
                          value={value}
-                         onSubmitEditing={handleSubmit(handleSingUp)}
+                         onSubmitEditing={handleSubmit(handleSignUp)}
                          returnKeyType='send'
                          errorMessage={errors.password_confirm?.message}
                         />
@@ -130,7 +170,8 @@ export function SingUp(){
 
                     <Button 
                      title="Criar e acessar"
-                     onPress={handleSubmit(handleSingUp)}
+                     onPress={handleSubmit(handleSignUp)}
+                     isLoading={isLoading}
                     />
                 </Center>
                 
